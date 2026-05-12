@@ -14,6 +14,7 @@ final class HikeRecorder: NSObject {
     private(set) var state: State = .idle
     private(set) var currentHike: Hike?
     private(set) var elapsedSeconds: Int = 0
+    private(set) var liveCoordinates: [CLLocationCoordinate2D] = []
 
     private let manager = CLLocationManager()
     private let stepCounter = StepCounter()
@@ -42,6 +43,7 @@ final class HikeRecorder: NSObject {
         state = .recording
         elapsedSeconds = 0
         lastLocation = nil
+        liveCoordinates = []
 
         manager.startUpdatingLocation()
 
@@ -70,6 +72,7 @@ final class HikeRecorder: NSObject {
         state = .idle
         elapsedSeconds = 0
         lastLocation = nil
+        liveCoordinates = []
     }
 }
 
@@ -105,6 +108,7 @@ extension HikeRecorder: CLLocationManagerDelegate {
             )
             sample.hike = hike
             modelContext.insert(sample)
+            liveCoordinates.append(location.coordinate)
             lastLocation = location
         }
         try? modelContext.save()

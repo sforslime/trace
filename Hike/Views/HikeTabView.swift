@@ -6,104 +6,101 @@ struct HikeTabView: View {
     @Environment(HikeRecorder.self) private var recorder
 
     var body: some View {
-        NavigationStack {
-            content
-                .navigationTitle("Hike")
-                .navigationBarTitleDisplayMode(.inline)
+        ZStack(alignment: .top) {
+            MapLibreMapView(
+                followsUser: true,
+                zoom: recorder.state == .recording ? 17 : 14,
+                breadcrumb: recorder.liveCoordinates
+            )
+            .ignoresSafeArea()
+
+            VStack(spacing: 0) {
+                if recorder.state == .recording {
+                    statsCard
+                        .padding(.horizontal, 16)
+                        .padding(.top, 8)
+                        .transition(.move(edge: .top).combined(with: .opacity))
+                }
+                Spacer()
+                actionButton
+                    .padding(.horizontal, 24)
+                    .padding(.bottom, 12)
+            }
+            .animation(.snappy, value: recorder.state)
         }
         .onAppear {
             recorder.attach(modelContext: modelContext)
         }
     }
 
-    @ViewBuilder
-    private var content: some View {
-        switch recorder.state {
-        case .idle:
-            idle
-        case .recording:
-            recording
+    private var statsCard: some View {
+        let hike = recorder.currentHike
+        return HStack(spacing: 0) {
+            stat("Distance", formatDistance(hike?.distanceMeters ?? 0))
+            divider
+            stat("Time", formatDuration(recorder.elapsedSeconds))
+            divider
+            stat("Pace", formatPace(meters: hike?.distanceMeters ?? 0, seconds: recorder.elapsedSeconds))
+            divider
+            stat("Steps", "\(hike?.stepCount ?? 0)")
         }
+        .padding(.vertical, 14)
+        .background(
+            RoundedRectangle(cornerRadius: 18, style: .continuous)
+                .fill(.regularMaterial)
+        )
+        .overlay(
+            RoundedRectangle(cornerRadius: 18, style: .continuous)
+                .strokeBorder(Color.primary.opacity(0.05), lineWidth: 1)
+        )
     }
 
-    private var idle: some View {
-        VStack(spacing: 24) {
-            Image(systemName: "figure.hiking")
-                .font(.system(size: 64))
-                .foregroundStyle(.tint)
-            Text("Ready to hike")
-                .font(.title2.weight(.semibold))
-            Text("Records your trail, steps, distance, and pace.")
-                .font(.subheadline)
+    private var divider: some View {
+        Rectangle()
+            .fill(Color.primary.opacity(0.08))
+            .frame(width: 1, height: 28)
+    }
+
+    private func stat(_ title: String, _ value: String) -> some View {
+        VStack(spacing: 2) {
+            Text(value)
+                .font(.system(size: 18, weight: .semibold, design: .rounded))
+                .monospacedDigit()
+                .lineLimit(1)
+                .minimumScaleFactor(0.6)
+            Text(title)
+                .font(.caption2)
                 .foregroundStyle(.secondary)
-                .multilineTextAlignment(.center)
-                .padding(.horizontal, 32)
-
-            Button {
-                recorder.start()
-            } label: {
-                Text("Start hike")
-                    .font(.headline)
-                    .frame(maxWidth: .infinity)
-                    .padding(.vertical, 6)
-            }
-            .buttonStyle(.borderedProminent)
-            .controlSize(.large)
-            .padding(.horizontal, 32)
         }
-        .frame(maxWidth: .infinity, maxHeight: .infinity)
+        .frame(maxWidth: .infinity)
     }
 
-    private var recording: some View {
-        VStack(spacing: 0) {
-            statsGrid
-                .padding(.top, 32)
-                .padding(.horizontal, 24)
-
-            Spacer()
-
+    @ViewBuilder
+    private var actionButton: some View {
+        if recorder.state == .recording {
             Button {
                 recorder.end()
             } label: {
                 Text("End hike")
                     .font(.headline)
                     .frame(maxWidth: .infinity)
-                    .padding(.vertical, 6)
+                    .padding(.vertical, 8)
             }
             .buttonStyle(.borderedProminent)
             .tint(.red)
             .controlSize(.large)
-            .padding(.horizontal, 32)
-            .padding(.bottom, 24)
-        }
-    }
-
-    private var statsGrid: some View {
-        let hike = recorder.currentHike
-        return Grid(horizontalSpacing: 24, verticalSpacing: 24) {
-            GridRow {
-                stat("Distance", formatDistance(hike?.distanceMeters ?? 0))
-                stat("Time", formatDuration(recorder.elapsedSeconds))
+        } else {
+            Button {
+                recorder.start()
+            } label: {
+                Text("Start hike")
+                    .font(.headline)
+                    .frame(maxWidth: .infinity)
+                    .padding(.vertical, 8)
             }
-            GridRow {
-                stat("Steps", "\(hike?.stepCount ?? 0)")
-                stat("Pace", formatPace(meters: hike?.distanceMeters ?? 0, seconds: recorder.elapsedSeconds))
-            }
+            .buttonStyle(.borderedProminent)
+            .controlSize(.large)
         }
-    }
-
-    private func stat(_ title: String, _ value: String) -> some View {
-        VStack(spacing: 4) {
-            Text(value)
-                .font(.system(size: 32, weight: .semibold, design: .rounded))
-                .monospacedDigit()
-                .lineLimit(1)
-                .minimumScaleFactor(0.6)
-            Text(title)
-                .font(.caption)
-                .foregroundStyle(.secondary)
-        }
-        .frame(maxWidth: .infinity)
     }
 
     private func formatDistance(_ meters: Double) -> String {
