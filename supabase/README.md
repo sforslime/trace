@@ -30,13 +30,13 @@ Run the files in order:
 
 ## Auth providers
 
-These must be configured in the Supabase dashboard, not in SQL:
+These must be configured in the Supabase dashboard, not in SQL.
 
-**Apple** (Authentication → Providers → Apple)
-- Requires an Apple Developer account ($99/yr)
-- Create a Services ID in the Apple Developer portal, enable Sign In with Apple
-- Configure the redirect URL Supabase shows in the provider panel
-- Paste the Client ID + Secret Key into Supabase
+**v1 providers (enable these now):**
+
+**Email** (Authentication → Providers → Email)
+- Enabled by default
+- For dev, you can disable "Confirm email" so signups go through without an SMTP round-trip
 
 **Google** (Authentication → Providers → Google)
 - Create an OAuth 2.0 Client ID in Google Cloud Console
@@ -44,9 +44,11 @@ These must be configured in the Supabase dashboard, not in SQL:
 - Bundle ID: matches the iOS app's bundle identifier
 - Paste the Client ID into Supabase
 
-**Email** (Authentication → Providers → Email)
-- Enabled by default
-- For dev, you can disable "Confirm email" so signups go through without an SMTP round-trip
+**Deferred (requires Apple Developer account, $99/yr):**
+
+**Apple** (Authentication → Providers → Apple)
+- Skipped in v1 — re-enable after purchasing an Apple Developer account
+- When ready: create a Services ID in the Apple Developer portal, enable Sign In with Apple, configure the redirect URL Supabase shows in the provider panel, paste the Client ID + Secret Key into Supabase
 
 ## Schema overview
 
