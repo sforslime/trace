@@ -30,14 +30,14 @@ iOS ships first; Android follows once iOS is validated on TestFlight.
 
 Three pieces:
 
-- **iOS app (Swift / SwiftUI)** — MapLibre Native iOS, CoreLocation for GPS, CoreMotion for steps, Core Data for local persistence, Keychain for auth tokens.
+- **iOS app (Swift / SwiftUI)** — MapLibre Native iOS, CoreLocation for GPS, CoreMotion for steps, SwiftData for local persistence (chosen over Core Data — pure-Swift `@Model`, less boilerplate, iOS 17+ native), Keychain for auth tokens.
 - **Android app (Kotlin / Jetpack Compose)** — MapLibre Native Android, FusedLocationProviderClient for GPS, SensorManager (TYPE_STEP_COUNTER) for steps, Room for local persistence, EncryptedSharedPreferences for tokens.
 - **Backend (Supabase)** — Postgres + PostGIS, Supabase Auth (email-only for v1; Google + Apple deferred), Supabase Storage for future media on waypoints. Row Level Security enforces public-trail / private-waypoint split.
 
 ### Data flow at a glance
 
 ```
-Hike start → app records GPS samples + steps locally (SQLite/Core Data)
+Hike start → app records GPS samples + steps locally (SwiftData)
            ↓
 Hike end → user pins destination → trail saved as complete record locally
            ↓
@@ -71,7 +71,7 @@ Shared map ← reads aggregated public trails + destinations from PostGIS
 - `FollowMapView` — compass arrow + distance overlay
 
 **Sync**
-- `SyncQueue` — Core Data outbox, drains when network returns
+- `SyncQueue` — SwiftData-backed outbox, drains when network returns
 - `SupabaseClient` — auth + PostgREST + RLS-aware reads/writes
 
 **Safety**
@@ -82,7 +82,7 @@ Shared map ← reads aggregated public trails + destinations from PostGIS
 
 **Recording a hike (offline default)**
 - Start → Hike row created locally (status=recording)
-- Each GPS sample appended to Core Data (crash-safe)
+- Each GPS sample appended to SwiftData (crash-safe)
 - Waypoints written locally as user drops them
 - Destination pin marks hasDestination
 - End → status=finished, hike enqueued for sync
@@ -103,7 +103,7 @@ Shared map ← reads aggregated public trails + destinations from PostGIS
 - RLS policies: anyone reads public trails; only owner reads/writes private waypoints
 
 **Invariants**
-- Local Core Data is source of truth during a hike
+- Local SwiftData is source of truth during a hike
 - Server is source of truth for the shared map
 - A hike is never lost to network failure
 - Private waypoints never appear in any server response unless explicitly published
