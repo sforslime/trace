@@ -17,7 +17,7 @@ iOS ships first; Android follows once iOS is validated on TestFlight.
 | Map rendering | MapLibre Native (open source, OpenStreetMap tiles) |
 | Offline maps | Pre-downloaded regions; user picks before hiking |
 | Backend | Supabase (Postgres + PostGIS, Auth, Storage) |
-| Identity | Required accounts — Google, email (Apple sign-in deferred until Apple Dev account is purchased) |
+| Identity | Required accounts — email only for v1 (Google deferred until OAuth setup; Apple deferred until Apple Dev account) |
 | Group features | Solo tracking only in v1; no live hike |
 | Visibility model | Trail public on shared map; waypoints private unless shared |
 | Destination | Discovered & pinned during the hike (not pre-planned) |
@@ -32,7 +32,7 @@ Three pieces:
 
 - **iOS app (Swift / SwiftUI)** — MapLibre Native iOS, CoreLocation for GPS, CoreMotion for steps, Core Data for local persistence, Keychain for auth tokens.
 - **Android app (Kotlin / Jetpack Compose)** — MapLibre Native Android, FusedLocationProviderClient for GPS, SensorManager (TYPE_STEP_COUNTER) for steps, Room for local persistence, EncryptedSharedPreferences for tokens.
-- **Backend (Supabase)** — Postgres + PostGIS, Supabase Auth (Google + email for v1; Apple deferred), Supabase Storage for future media on waypoints. Row Level Security enforces public-trail / private-waypoint split.
+- **Backend (Supabase)** — Postgres + PostGIS, Supabase Auth (email-only for v1; Google + Apple deferred), Supabase Storage for future media on waypoints. Row Level Security enforces public-trail / private-waypoint split.
 
 ### Data flow at a glance
 
@@ -99,7 +99,7 @@ Shared map ← reads aggregated public trails + destinations from PostGIS
 - Tap a destination → "Follow this trail" downloads trail + surrounding tiles → Follow mode
 
 **Auth**
-- Sign in via Supabase Auth (Google + email for v1; Apple deferred) → JWT in Keychain
+- Sign in via Supabase Auth (email-only for v1) → JWT in Keychain
 - RLS policies: anyone reads public trails; only owner reads/writes private waypoints
 
 **Invariants**
@@ -176,8 +176,11 @@ Shared map ← reads aggregated public trails + destinations from PostGIS
 - Teacher/student dashboards
 - Photo uploads on waypoints
 
-## Deferred (waiting on Apple Developer account)
+## Deferred
 
+**Sign in with Google** — needs a Google Cloud OAuth client + dashboard provider setup; cut from v1 to avoid the setup detour. Re-enable when the user wants it.
+
+**Waiting on Apple Developer account ($99/yr):**
 - Sign in with Apple (re-enable in Supabase + add to iOS auth UI)
 - TestFlight beta distribution
 - Real-device testing beyond the 7-day free-provisioning window
