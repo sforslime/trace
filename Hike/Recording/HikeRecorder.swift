@@ -15,6 +15,11 @@ final class HikeRecorder: NSObject {
     private(set) var currentHike: Hike?
     private(set) var elapsedSeconds: Int = 0
     private(set) var liveCoordinates: [CLLocationCoordinate2D] = []
+    private(set) var destinationCoordinate: CLLocationCoordinate2D?
+
+    // Captured at end() so HikeTabView can present the summary sheet
+    // after the recorder has already returned to .idle.
+    var lastFinishedHike: Hike?
 
     private let manager = CLLocationManager()
     private let stepCounter = StepCounter()
@@ -44,6 +49,7 @@ final class HikeRecorder: NSObject {
         elapsedSeconds = 0
         lastLocation = nil
         liveCoordinates = []
+        destinationCoordinate = nil
 
         manager.startUpdatingLocation()
 
@@ -68,11 +74,36 @@ final class HikeRecorder: NSObject {
         timer = nil
         hike.endedAt = .now
         try? modelContext?.save()
+        lastFinishedHike = hike
         currentHike = nil
         state = .idle
         elapsedSeconds = 0
         lastLocation = nil
         liveCoordinates = []
+        destinationCoordinate = nil
+    }
+
+    func pinDestination() {
+        guard state == .recording,
+              let hike = currentHike,
+              let location = lastLocation,
+              let modelContext else { return }
+
+        // Replace any prior destination so a hike has at most one.
+        for existing in hike.waypoints where existing.isDestination {
+            modelContext.delete(existing)
+        }
+
+        let pin = Waypoint(
+            latitude: location.coordinate.latitude,
+            longitude: location.coordinate.longitude,
+            isDestination: true
+        )
+        pin.hike = hike
+        modelContext.insert(pin)
+        try? modelContext.save()
+
+        destinationCoordinate = location.coordinate
     }
 }
 

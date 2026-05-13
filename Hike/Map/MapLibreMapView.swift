@@ -7,6 +7,9 @@ struct MapLibreMapView: UIViewRepresentable {
     var followsUser: Bool = true
     var zoom: Double? = nil
     var breadcrumb: [CLLocationCoordinate2D] = []
+    var destination: CLLocationCoordinate2D? = nil
+    var fitBounds: [CLLocationCoordinate2D]? = nil
+    var interactive: Bool = true
 
     func makeCoordinator() -> Coordinator {
         Coordinator()
@@ -18,6 +21,10 @@ struct MapLibreMapView: UIViewRepresentable {
         mapView.userTrackingMode = followsUser ? .follow : .none
         mapView.compassView.isHidden = false
         mapView.delegate = context.coordinator
+        mapView.allowsZooming = interactive
+        mapView.allowsScrolling = interactive
+        mapView.allowsRotating = interactive
+        mapView.allowsTilting = interactive
         context.coordinator.parent = self
         return mapView
     }
@@ -34,19 +41,30 @@ struct MapLibreMapView: UIViewRepresentable {
             mapView.userTrackingMode = desiredMode
         }
 
-        // apply zoom only on transitions so we don't fight the user's pinch
         if let zoom, context.coordinator.lastAppliedZoom != zoom {
             mapView.setZoomLevel(zoom, animated: true)
             context.coordinator.lastAppliedZoom = zoom
         }
 
+        if let fitBounds, context.coordinator.lastFitBoundsSignature != Self.signature(of: fitBounds) {
+            context.coordinator.applyFit(coordinates: fitBounds, on: mapView)
+        }
+
         context.coordinator.updatePolyline(coordinates: breadcrumb)
+        context.coordinator.updateDestination(destination, on: mapView)
+    }
+
+    private static func signature(of coords: [CLLocationCoordinate2D]) -> String {
+        guard let first = coords.first, let last = coords.last else { return "" }
+        return "\(coords.count)-\(first.latitude),\(first.longitude)-\(last.latitude),\(last.longitude)"
     }
 
     final class Coordinator: NSObject, MLNMapViewDelegate {
         var parent: MapLibreMapView?
         var lastAppliedZoom: Double?
+        var lastFitBoundsSignature: String?
         private var polylineSource: MLNShapeSource?
+        private var destinationAnnotation: MLNPointAnnotation?
         private var styleLoaded = false
 
         func mapView(_ mapView: MLNMapView, didFinishLoading style: MLNStyle) {
@@ -65,6 +83,10 @@ struct MapLibreMapView: UIViewRepresentable {
 
             if let parent {
                 updatePolyline(coordinates: parent.breadcrumb)
+                updateDestination(parent.destination, on: mapView)
+                if let bounds = parent.fitBounds {
+                    applyFit(coordinates: bounds, on: mapView)
+                }
             }
         }
 
@@ -76,6 +98,32 @@ struct MapLibreMapView: UIViewRepresentable {
             }
             var coords = coordinates
             polylineSource.shape = MLNPolylineFeature(coordinates: &coords, count: UInt(coords.count))
+        }
+
+        func updateDestination(_ coord: CLLocationCoordinate2D?, on mapView: MLNMapView) {
+            if let existing = destinationAnnotation {
+                mapView.removeAnnotation(existing)
+                destinationAnnotation = nil
+            }
+            guard let coord else { return }
+            let pin = MLNPointAnnotation()
+            pin.coordinate = coord
+            pin.title = "Destination"
+            mapView.addAnnotation(pin)
+            destinationAnnotation = pin
+        }
+
+        func applyFit(coordinates: [CLLocationCoordinate2D], on mapView: MLNMapView) {
+            guard coordinates.count >= 2 else { return }
+            var coords = coordinates
+            let padding = UIEdgeInsets(top: 60, left: 40, bottom: 60, right: 40)
+            mapView.setVisibleCoordinates(
+                &coords,
+                count: UInt(coords.count),
+                edgePadding: padding,
+                animated: false
+            )
+            lastFitBoundsSignature = MapLibreMapView.signature(of: coordinates)
         }
     }
 }

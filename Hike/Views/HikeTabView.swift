@@ -5,12 +5,15 @@ struct HikeTabView: View {
     @Environment(\.modelContext) private var modelContext
     @Environment(HikeRecorder.self) private var recorder
 
+    @State private var summaryHike: Hike?
+
     var body: some View {
         ZStack(alignment: .top) {
             MapLibreMapView(
                 followsUser: true,
                 zoom: recorder.state == .recording ? 17 : 14,
-                breadcrumb: recorder.liveCoordinates
+                breadcrumb: recorder.liveCoordinates,
+                destination: recorder.destinationCoordinate
             )
             .ignoresSafeArea()
 
@@ -22,14 +25,33 @@ struct HikeTabView: View {
                         .transition(.move(edge: .top).combined(with: .opacity))
                 }
                 Spacer()
-                actionButton
+
+                if recorder.state == .recording {
+                    HStack(spacing: 12) {
+                        pinButton
+                        endButton
+                    }
                     .padding(.horizontal, 24)
                     .padding(.bottom, 12)
+                } else {
+                    startButton
+                        .padding(.horizontal, 24)
+                        .padding(.bottom, 12)
+                }
             }
             .animation(.snappy, value: recorder.state)
         }
         .onAppear {
             recorder.attach(modelContext: modelContext)
+        }
+        .onChange(of: recorder.lastFinishedHike) { _, newHike in
+            if let newHike {
+                summaryHike = newHike
+                recorder.lastFinishedHike = nil
+            }
+        }
+        .sheet(item: $summaryHike) { hike in
+            HikeDetailView(hike: hike, presentation: .summary)
         }
     }
 
@@ -73,32 +95,51 @@ struct HikeTabView: View {
         .frame(maxWidth: .infinity)
     }
 
-    @ViewBuilder
-    private var actionButton: some View {
-        if recorder.state == .recording {
-            Button {
-                recorder.end()
-            } label: {
-                Text("End hike")
-                    .font(.headline)
-                    .frame(maxWidth: .infinity)
-                    .padding(.vertical, 8)
-            }
-            .buttonStyle(.borderedProminent)
-            .tint(.red)
-            .controlSize(.large)
-        } else {
-            Button {
-                recorder.start()
-            } label: {
-                Text("Start hike")
-                    .font(.headline)
-                    .frame(maxWidth: .infinity)
-                    .padding(.vertical, 8)
-            }
-            .buttonStyle(.borderedProminent)
-            .controlSize(.large)
+    private var pinButton: some View {
+        Button {
+            recorder.pinDestination()
+        } label: {
+            Label(
+                recorder.destinationCoordinate == nil ? "Pin destination" : "Repin",
+                systemImage: "mappin.and.ellipse"
+            )
+            .font(.headline)
+            .frame(maxWidth: .infinity)
+            .padding(.vertical, 8)
         }
+        .buttonStyle(.bordered)
+        .controlSize(.large)
+        .background(
+            RoundedRectangle(cornerRadius: 12, style: .continuous)
+                .fill(.regularMaterial)
+        )
+    }
+
+    private var endButton: some View {
+        Button {
+            recorder.end()
+        } label: {
+            Text("End")
+                .font(.headline)
+                .frame(maxWidth: .infinity)
+                .padding(.vertical, 8)
+        }
+        .buttonStyle(.borderedProminent)
+        .tint(.red)
+        .controlSize(.large)
+    }
+
+    private var startButton: some View {
+        Button {
+            recorder.start()
+        } label: {
+            Text("Start hike")
+                .font(.headline)
+                .frame(maxWidth: .infinity)
+                .padding(.vertical, 8)
+        }
+        .buttonStyle(.borderedProminent)
+        .controlSize(.large)
     }
 
     private func formatDistance(_ meters: Double) -> String {
