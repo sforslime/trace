@@ -24,21 +24,17 @@ final class AuthManager {
 
     private(set) var state: State = .loading
 
-    private var listener: Task<Void, Never>?
-
     init() {
-        listener = Task { @MainActor [weak self] in
-            // authStateChanges fires immediately with the current session (if any),
-            // so we don't need a separate "load initial session" step.
+        // authStateChanges emits an initialSession event on subscription,
+        // so we don't need a separate "fetch current session" step. The
+        // task lives for the app's lifetime — AuthManager is held in
+        // @State at the Scene root, so no deinit cleanup is needed.
+        Task { @MainActor [weak self] in
             for await change in Supa.client.auth.authStateChanges {
                 guard let self else { return }
                 self.apply(event: change.event, session: change.session)
             }
         }
-    }
-
-    deinit {
-        listener?.cancel()
     }
 
     func signIn(email: String, password: String) async throws {
