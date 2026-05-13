@@ -4,6 +4,7 @@ import SwiftUI
 struct TrailTabView: View {
     @Environment(\.modelContext) private var modelContext
     @Environment(TrailRecorder.self) private var recorder
+    @Environment(TrailSyncManager.self) private var sync
 
     @State private var summaryTrail: Trail?
 
@@ -48,6 +49,7 @@ struct TrailTabView: View {
             if let newTrail {
                 summaryTrail = newTrail
                 recorder.lastFinishedTrail = nil
+                Task { await sync.syncPending() }
             }
         }
         .sheet(item: $summaryTrail) { trail in
