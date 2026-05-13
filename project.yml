@@ -1,6 +1,6 @@
-name: Hike
+name: Trace
 options:
-  bundleIdPrefix: app.hike
+  bundleIdPrefix: app.trace
   deploymentTarget:
     iOS: "17.0"
   createIntermediateGroups: true
@@ -21,23 +21,23 @@ packages:
     from: 2.24.0
 
 targets:
-  Hike:
+  Trace:
     type: application
     platform: iOS
     sources:
-      - path: Hike
+      - path: Trace
     settings:
       base:
-        PRODUCT_BUNDLE_IDENTIFIER: app.hike.Hike
+        PRODUCT_BUNDLE_IDENTIFIER: app.trace.Trace
         TARGETED_DEVICE_FAMILY: "1,2"
         GENERATE_INFOPLIST_FILE: YES
         INFOPLIST_KEY_UIApplicationSceneManifest_Generation: YES
         INFOPLIST_KEY_UILaunchScreen_Generation: YES
         INFOPLIST_KEY_UISupportedInterfaceOrientations_iPhone: "UIInterfaceOrientationPortrait UIInterfaceOrientationLandscapeLeft UIInterfaceOrientationLandscapeRight"
         INFOPLIST_KEY_UISupportedInterfaceOrientations_iPad: "UIInterfaceOrientationPortrait UIInterfaceOrientationPortraitUpsideDown UIInterfaceOrientationLandscapeLeft UIInterfaceOrientationLandscapeRight"
-        INFOPLIST_KEY_NSLocationWhenInUseUsageDescription: "Hike uses your location to record your trail and show your position on the map."
-        INFOPLIST_KEY_NSLocationAlwaysAndWhenInUseUsageDescription: "Hike tracks your trail in the background so you can lock your phone while hiking."
-        INFOPLIST_KEY_NSMotionUsageDescription: "Hike uses motion data to count your steps during a hike."
+        INFOPLIST_KEY_NSLocationWhenInUseUsageDescription: "Trace uses your location to record your trail and show your position on the map."
+        INFOPLIST_KEY_NSLocationAlwaysAndWhenInUseUsageDescription: "Trace tracks your trail in the background so you can lock your phone while hiking."
+        INFOPLIST_KEY_NSMotionUsageDescription: "Trace uses motion data to count your steps during a hike."
         INFOPLIST_KEY_UIBackgroundModes: "location"
     dependencies:
       - package: MapLibre

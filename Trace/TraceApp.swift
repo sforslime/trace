@@ -2,7 +2,7 @@ import SwiftData
 import SwiftUI
 
 @main
-struct HikeApp: App {
+struct TraceApp: App {
     @State private var recorder = HikeRecorder()
 
     var body: some Scene {
