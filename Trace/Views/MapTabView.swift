@@ -1,8 +1,11 @@
-import SwiftUI
 import CoreLocation
+import MapLibre
+import SwiftUI
 
 struct MapTabView: View {
     @State private var location = LocationManager()
+    @State private var sharedTrails = SharedTrailsRepository()
+    @State private var debounceTask: Task<Void, Never>?
 
     var body: some View {
         NavigationStack {
@@ -20,10 +23,36 @@ struct MapTabView: View {
         case .denied, .restricted:
             permissionDenied
         case .authorizedWhenInUse, .authorizedAlways:
-            MapLibreMapView()
-                .ignoresSafeArea(edges: .bottom)
+            MapLibreMapView(
+                sharedTrails: sharedTrails.trails.map(\.coordinates),
+                onRegionChange: scheduleFetch
+            )
+            .ignoresSafeArea(edges: .bottom)
         @unknown default:
             permissionRequest
+        }
+    }
+
+    private func scheduleFetch(bounds: MLNCoordinateBounds) {
+        let minLng = bounds.sw.longitude
+        let minLat = bounds.sw.latitude
+        let maxLng = bounds.ne.longitude
+        let maxLat = bounds.ne.latitude
+
+        let lngSpan = maxLng - minLng
+        let latSpan = maxLat - minLat
+        guard lngSpan > 0, lngSpan < 90, latSpan > 0, latSpan < 90 else { return }
+
+        debounceTask?.cancel()
+        debounceTask = Task { @MainActor in
+            try? await Task.sleep(for: .milliseconds(400))
+            guard !Task.isCancelled else { return }
+            await sharedTrails.refresh(
+                minLng: minLng,
+                minLat: minLat,
+                maxLng: maxLng,
+                maxLat: maxLat
+            )
         }
     }
 

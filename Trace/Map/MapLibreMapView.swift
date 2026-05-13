@@ -10,6 +10,8 @@ struct MapLibreMapView: UIViewRepresentable {
     var destination: CLLocationCoordinate2D? = nil
     var fitBounds: [CLLocationCoordinate2D]? = nil
     var interactive: Bool = true
+    var sharedTrails: [[CLLocationCoordinate2D]] = []
+    var onRegionChange: ((MLNCoordinateBounds) -> Void)? = nil
 
     func makeCoordinator() -> Coordinator {
         Coordinator()
@@ -36,10 +38,8 @@ struct MapLibreMapView: UIViewRepresentable {
             mapView.styleURL = styleURL
         }
 
-        let desiredMode: MLNUserTrackingMode = followsUser ? .follow : .none
-        if mapView.userTrackingMode != desiredMode {
-            mapView.userTrackingMode = desiredMode
-        }
+        // followsUser is applied once in makeUIView; we don't re-enforce it
+        // here, so a user pan/zoom isn't snapped back on the next SwiftUI update.
 
         if let zoom, context.coordinator.lastAppliedZoom != zoom {
             mapView.setZoomLevel(zoom, animated: true)
@@ -50,6 +50,7 @@ struct MapLibreMapView: UIViewRepresentable {
             context.coordinator.applyFit(coordinates: fitBounds, on: mapView)
         }
 
+        context.coordinator.updateSharedTrails(trails: sharedTrails)
         context.coordinator.updatePolyline(coordinates: breadcrumb)
         context.coordinator.updateDestination(destination, on: mapView)
     }
@@ -64,10 +65,23 @@ struct MapLibreMapView: UIViewRepresentable {
         var lastAppliedZoom: Double?
         var lastFitBoundsSignature: String?
         private var polylineSource: MLNShapeSource?
+        private var sharedTrailsSource: MLNShapeSource?
         private var destinationAnnotation: MLNPointAnnotation?
         private var styleLoaded = false
+        private var lastSharedTrailsSignature: String?
 
         func mapView(_ mapView: MLNMapView, didFinishLoading style: MLNStyle) {
+            let sharedSource = MLNShapeSource(identifier: "shared-trails", shape: nil, options: nil)
+            style.addSource(sharedSource)
+            sharedTrailsSource = sharedSource
+
+            let sharedLayer = MLNLineStyleLayer(identifier: "shared-trails-line", source: sharedSource)
+            sharedLayer.lineColor = NSExpression(forConstantValue: UIColor.systemGray.withAlphaComponent(0.7))
+            sharedLayer.lineWidth = NSExpression(forConstantValue: 3)
+            sharedLayer.lineCap = NSExpression(forConstantValue: "round")
+            sharedLayer.lineJoin = NSExpression(forConstantValue: "round")
+            style.addLayer(sharedLayer)
+
             let source = MLNShapeSource(identifier: "breadcrumb", shape: nil, options: nil)
             style.addSource(source)
             polylineSource = source
@@ -82,12 +96,21 @@ struct MapLibreMapView: UIViewRepresentable {
             styleLoaded = true
 
             if let parent {
+                updateSharedTrails(trails: parent.sharedTrails)
                 updatePolyline(coordinates: parent.breadcrumb)
                 updateDestination(parent.destination, on: mapView)
                 if let bounds = parent.fitBounds {
                     applyFit(coordinates: bounds, on: mapView)
                 }
             }
+
+            if let parent {
+                parent.onRegionChange?(mapView.visibleCoordinateBounds)
+            }
+        }
+
+        func mapView(_ mapView: MLNMapView, regionDidChangeAnimated animated: Bool) {
+            parent?.onRegionChange?(mapView.visibleCoordinateBounds)
         }
 
         func updatePolyline(coordinates: [CLLocationCoordinate2D]) {
@@ -98,6 +121,24 @@ struct MapLibreMapView: UIViewRepresentable {
             }
             var coords = coordinates
             polylineSource.shape = MLNPolylineFeature(coordinates: &coords, count: UInt(coords.count))
+        }
+
+        func updateSharedTrails(trails: [[CLLocationCoordinate2D]]) {
+            guard let sharedTrailsSource, styleLoaded else { return }
+
+            let signature = trails.reduce(into: "") { acc, line in
+                guard let first = line.first, let last = line.last else { return }
+                acc += "[\(line.count):\(first.latitude),\(first.longitude)-\(last.latitude),\(last.longitude)]"
+            }
+            guard signature != lastSharedTrailsSignature else { return }
+            lastSharedTrailsSignature = signature
+
+            let features = trails.compactMap { line -> MLNPolylineFeature? in
+                guard line.count >= 2 else { return nil }
+                var coords = line
+                return MLNPolylineFeature(coordinates: &coords, count: UInt(coords.count))
+            }
+            sharedTrailsSource.shape = MLNShapeCollectionFeature(shapes: features)
         }
 
         func updateDestination(_ coord: CLLocationCoordinate2D?, on mapView: MLNMapView) {
