@@ -1,7 +1,7 @@
 import CoreLocation
 import SwiftUI
 
-struct HikeThumbnail: View {
+struct TrailThumbnail: View {
     let coordinates: [CLLocationCoordinate2D]
 
     var body: some View {

@@ -1,11 +1,11 @@
 import SwiftData
 import SwiftUI
 
-struct HikeTabView: View {
+struct TrailTabView: View {
     @Environment(\.modelContext) private var modelContext
-    @Environment(HikeRecorder.self) private var recorder
+    @Environment(TrailRecorder.self) private var recorder
 
-    @State private var summaryHike: Hike?
+    @State private var summaryTrail: Trail?
 
     var body: some View {
         ZStack(alignment: .top) {
@@ -44,25 +44,25 @@ struct HikeTabView: View {
         .onAppear {
             recorder.attach(modelContext: modelContext)
         }
-        .onChange(of: recorder.lastFinishedHike) { _, newHike in
-            if let newHike {
-                summaryHike = newHike
-                recorder.lastFinishedHike = nil
+        .onChange(of: recorder.lastFinishedTrail) { _, newTrail in
+            if let newTrail {
+                summaryTrail = newTrail
+                recorder.lastFinishedTrail = nil
             }
         }
-        .sheet(item: $summaryHike) { hike in
-            HikeDetailView(hike: hike, presentation: .summary)
+        .sheet(item: $summaryTrail) { trail in
+            TrailDetailView(trail: trail, presentation: .summary)
         }
     }
 
     private var statsCard: some View {
-        let hike = recorder.currentHike
+        let trail = recorder.currentTrail
         return HStack(spacing: 0) {
-            stat("Distance", formatDistance(hike?.distanceMeters ?? 0))
+            stat("Distance", formatDistance(trail?.distanceMeters ?? 0))
             divider
             stat("Time", formatDuration(recorder.elapsedSeconds))
             divider
-            stat("Pace", formatPace(meters: hike?.distanceMeters ?? 0, seconds: recorder.elapsedSeconds))
+            stat("Pace", formatPace(meters: trail?.distanceMeters ?? 0, seconds: recorder.elapsedSeconds))
         }
         .padding(.vertical, 14)
         .background(
@@ -133,7 +133,7 @@ struct HikeTabView: View {
         Button {
             recorder.start()
         } label: {
-            Text("Start hike")
+            Text("Start a new trail")
                 .font(.headline)
                 .frame(maxWidth: .infinity)
                 .padding(.vertical, 8)

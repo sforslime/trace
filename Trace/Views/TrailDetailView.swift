@@ -2,28 +2,28 @@ import CoreLocation
 import SwiftData
 import SwiftUI
 
-struct HikeDetailView: View {
+struct TrailDetailView: View {
     enum Presentation {
-        case summary  // sheet right after a hike ends
+        case summary  // sheet right after a trail ends
         case review   // pushed from Library
     }
 
     @Environment(\.modelContext) private var modelContext
     @Environment(\.dismiss) private var dismiss
 
-    @Bindable var hike: Hike
+    @Bindable var trail: Trail
     var presentation: Presentation = .review
 
     @State private var showDeleteConfirm = false
 
     private var coordinates: [CLLocationCoordinate2D] {
-        hike.samples
+        trail.samples
             .sorted { $0.timestamp < $1.timestamp }
             .map { CLLocationCoordinate2D(latitude: $0.latitude, longitude: $0.longitude) }
     }
 
     private var destination: CLLocationCoordinate2D? {
-        guard let pin = hike.waypoints.first(where: { $0.isDestination }) else { return nil }
+        guard let pin = trail.waypoints.first(where: { $0.isDestination }) else { return nil }
         return CLLocationCoordinate2D(latitude: pin.latitude, longitude: pin.longitude)
     }
 
@@ -35,7 +35,7 @@ struct HikeDetailView: View {
                         .frame(height: 280)
                         .clipShape(RoundedRectangle(cornerRadius: 16, style: .continuous))
 
-                    TextField("Hike title", text: titleBinding)
+                    TextField("Trail title", text: titleBinding)
                         .textFieldStyle(.roundedBorder)
                         .font(.title3.weight(.semibold))
 
@@ -43,7 +43,7 @@ struct HikeDetailView: View {
                 }
                 .padding(16)
             }
-            .navigationTitle(presentation == .summary ? "Hike complete" : "Hike")
+            .navigationTitle(presentation == .summary ? "Trail complete" : "Trail")
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
                 ToolbarItem(placement: .topBarTrailing) {
@@ -55,7 +55,7 @@ struct HikeDetailView: View {
                         .fontWeight(.semibold)
                     } else {
                         Menu {
-                            Button("Delete hike", systemImage: "trash", role: .destructive) {
+                            Button("Delete trail", systemImage: "trash", role: .destructive) {
                                 showDeleteConfirm = true
                             }
                         } label: {
@@ -72,22 +72,22 @@ struct HikeDetailView: View {
                 }
             }
             .confirmationDialog(
-                "Delete this hike?",
+                "Delete this trail?",
                 isPresented: $showDeleteConfirm,
                 titleVisibility: .visible
             ) {
-                Button("Delete", role: .destructive) { deleteHike() }
+                Button("Delete", role: .destructive) { deleteTrail() }
                 Button("Cancel", role: .cancel) {}
             } message: {
-                Text("The trail, samples, and waypoints will be removed.")
+                Text("The path, samples, and waypoints will be removed.")
             }
         }
     }
 
     private var titleBinding: Binding<String> {
         Binding(
-            get: { hike.title ?? "" },
-            set: { hike.title = $0.isEmpty ? nil : $0 }
+            get: { trail.title ?? "" },
+            set: { trail.title = $0.isEmpty ? nil : $0 }
         )
     }
 
@@ -104,14 +104,14 @@ struct HikeDetailView: View {
 
     private var statsBlock: some View {
         VStack(spacing: 0) {
-            row("Distance", formatDistance(hike.distanceMeters))
+            row("Distance", formatDistance(trail.distanceMeters))
             Divider()
-            row("Duration", formatDuration(hike.durationSeconds))
+            row("Duration", formatDuration(trail.durationSeconds))
             Divider()
-            row("Average pace", formatPace(meters: hike.distanceMeters, seconds: hike.durationSeconds))
+            row("Average pace", formatPace(meters: trail.distanceMeters, seconds: trail.durationSeconds))
             Divider()
-            row("Started", hike.startedAt.formatted(date: .abbreviated, time: .shortened))
-            if let endedAt = hike.endedAt {
+            row("Started", trail.startedAt.formatted(date: .abbreviated, time: .shortened))
+            if let endedAt = trail.endedAt {
                 Divider()
                 row("Ended", endedAt.formatted(date: .abbreviated, time: .shortened))
             }
@@ -136,8 +136,8 @@ struct HikeDetailView: View {
         .padding(.vertical, 12)
     }
 
-    private func deleteHike() {
-        modelContext.delete(hike)
+    private func deleteTrail() {
+        modelContext.delete(trail)
         try? modelContext.save()
         dismiss()
     }

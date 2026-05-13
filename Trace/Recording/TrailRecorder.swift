@@ -5,21 +5,21 @@ import SwiftData
 
 @Observable
 @MainActor
-final class HikeRecorder: NSObject {
+final class TrailRecorder: NSObject {
     enum State {
         case idle
         case recording
     }
 
     private(set) var state: State = .idle
-    private(set) var currentHike: Hike?
+    private(set) var currentTrail: Trail?
     private(set) var elapsedSeconds: Int = 0
     private(set) var liveCoordinates: [CLLocationCoordinate2D] = []
     private(set) var destinationCoordinate: CLLocationCoordinate2D?
 
-    // Captured at end() so HikeTabView can present the summary sheet
+    // Captured at end() so TrailTabView can present the summary sheet
     // after the recorder has already returned to .idle.
-    var lastFinishedHike: Hike?
+    var lastFinishedTrail: Trail?
 
     private let manager = CLLocationManager()
     private let stepCounter = StepCounter()
@@ -42,9 +42,9 @@ final class HikeRecorder: NSObject {
 
     func start() {
         guard state == .idle, let modelContext else { return }
-        let hike = Hike(startedAt: .now)
-        modelContext.insert(hike)
-        currentHike = hike
+        let trail = Trail(startedAt: .now)
+        modelContext.insert(trail)
+        currentTrail = trail
         state = .recording
         elapsedSeconds = 0
         lastLocation = nil
@@ -53,29 +53,29 @@ final class HikeRecorder: NSObject {
 
         manager.startUpdatingLocation()
 
-        stepCounter.start(from: hike.startedAt) { [weak self] steps in
-            self?.currentHike?.stepCount = steps
+        stepCounter.start(from: trail.startedAt) { [weak self] steps in
+            self?.currentTrail?.stepCount = steps
         }
 
         timer = Timer.scheduledTimer(withTimeInterval: 1.0, repeats: true) { [weak self] _ in
             Task { @MainActor in
-                guard let self, let hike = self.currentHike else { return }
+                guard let self, let trail = self.currentTrail else { return }
                 self.elapsedSeconds += 1
-                hike.durationSeconds = self.elapsedSeconds
+                trail.durationSeconds = self.elapsedSeconds
             }
         }
     }
 
     func end() {
-        guard state == .recording, let hike = currentHike else { return }
+        guard state == .recording, let trail = currentTrail else { return }
         manager.stopUpdatingLocation()
         stepCounter.stop()
         timer?.invalidate()
         timer = nil
-        hike.endedAt = .now
+        trail.endedAt = .now
         try? modelContext?.save()
-        lastFinishedHike = hike
-        currentHike = nil
+        lastFinishedTrail = trail
+        currentTrail = nil
         state = .idle
         elapsedSeconds = 0
         lastLocation = nil
@@ -85,12 +85,12 @@ final class HikeRecorder: NSObject {
 
     func pinDestination() {
         guard state == .recording,
-              let hike = currentHike,
+              let trail = currentTrail,
               let location = lastLocation,
               let modelContext else { return }
 
-        // Replace any prior destination so a hike has at most one.
-        for existing in hike.waypoints where existing.isDestination {
+        // Replace any prior destination so a trail has at most one.
+        for existing in trail.waypoints where existing.isDestination {
             modelContext.delete(existing)
         }
 
@@ -99,7 +99,7 @@ final class HikeRecorder: NSObject {
             longitude: location.coordinate.longitude,
             isDestination: true
         )
-        pin.hike = hike
+        pin.trail = trail
         modelContext.insert(pin)
         try? modelContext.save()
 
@@ -107,7 +107,7 @@ final class HikeRecorder: NSObject {
     }
 }
 
-extension HikeRecorder: CLLocationManagerDelegate {
+extension TrailRecorder: CLLocationManagerDelegate {
     nonisolated func locationManager(_ manager: CLLocationManager, didUpdateLocations locations: [CLLocation]) {
         let snapshots = locations
         Task { @MainActor in
@@ -116,7 +116,7 @@ extension HikeRecorder: CLLocationManagerDelegate {
     }
 
     private func ingest(locations: [CLLocation]) {
-        guard state == .recording, let hike = currentHike, let modelContext else { return }
+        guard state == .recording, let trail = currentTrail, let modelContext else { return }
         for location in locations {
             // discard wildly inaccurate samples
             guard location.horizontalAccuracy > 0, location.horizontalAccuracy < 50 else { continue }
@@ -126,10 +126,10 @@ extension HikeRecorder: CLLocationManagerDelegate {
                 let delta = location.distance(from: last)
                 let dt = location.timestamp.timeIntervalSince(last.timestamp)
                 if dt > 0, delta / dt > 100 { continue }
-                hike.distanceMeters += delta
+                trail.distanceMeters += delta
             }
 
-            let sample = HikeSample(
+            let sample = TrailSample(
                 timestamp: location.timestamp,
                 latitude: location.coordinate.latitude,
                 longitude: location.coordinate.longitude,
@@ -137,7 +137,7 @@ extension HikeRecorder: CLLocationManagerDelegate {
                 altitude: location.altitude,
                 speed: max(location.speed, 0)
             )
-            sample.hike = hike
+            sample.trail = trail
             modelContext.insert(sample)
             liveCoordinates.append(location.coordinate)
             lastLocation = location

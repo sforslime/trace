@@ -2,7 +2,7 @@ import Foundation
 import SwiftData
 
 @Model
-final class Hike {
+final class Trail {
     @Attribute(.unique) var id: UUID
     var startedAt: Date
     var endedAt: Date?
@@ -13,10 +13,10 @@ final class Hike {
     var isPublished: Bool
     var isSynced: Bool
 
-    @Relationship(deleteRule: .cascade, inverse: \HikeSample.hike)
-    var samples: [HikeSample] = []
+    @Relationship(deleteRule: .cascade, inverse: \TrailSample.trail)
+    var samples: [TrailSample] = []
 
-    @Relationship(deleteRule: .cascade, inverse: \Waypoint.hike)
+    @Relationship(deleteRule: .cascade, inverse: \Waypoint.trail)
     var waypoints: [Waypoint] = []
 
     init(id: UUID = UUID(), startedAt: Date = .now) {

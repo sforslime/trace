@@ -11,7 +11,7 @@ final class Waypoint {
     var note: String?
     var isPublic: Bool
     var isDestination: Bool
-    var hike: Hike?
+    var trail: Trail?
 
     init(
         id: UUID = UUID(),

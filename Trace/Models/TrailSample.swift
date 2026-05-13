@@ -2,14 +2,14 @@ import Foundation
 import SwiftData
 
 @Model
-final class HikeSample {
+final class TrailSample {
     var timestamp: Date
     var latitude: Double
     var longitude: Double
     var horizontalAccuracy: Double
     var altitude: Double
     var speed: Double
-    var hike: Hike?
+    var trail: Trail?
 
     init(
         timestamp: Date,

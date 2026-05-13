@@ -4,22 +4,22 @@ import SwiftUI
 
 struct LibraryTabView: View {
     @Query(
-        filter: #Predicate<Hike> { $0.endedAt != nil },
-        sort: [SortDescriptor(\Hike.startedAt, order: .reverse)]
+        filter: #Predicate<Trail> { $0.endedAt != nil },
+        sort: [SortDescriptor(\Trail.startedAt, order: .reverse)]
     )
-    private var hikes: [Hike]
+    private var trails: [Trail]
 
     var body: some View {
         NavigationStack {
             Group {
-                if hikes.isEmpty {
+                if trails.isEmpty {
                     emptyState
                 } else {
-                    List(hikes) { hike in
+                    List(trails) { trail in
                         NavigationLink {
-                            HikeDetailView(hike: hike, presentation: .review)
+                            TrailDetailView(trail: trail, presentation: .review)
                         } label: {
-                            HikeRow(hike: hike)
+                            TrailRow(trail: trail)
                         }
                     }
                     .listStyle(.plain)
@@ -34,9 +34,9 @@ struct LibraryTabView: View {
             Image(systemName: "books.vertical")
                 .font(.system(size: 48))
                 .foregroundStyle(.secondary)
-            Text("No hikes yet")
+            Text("No trails yet")
                 .font(.headline)
-            Text("Hikes you record will appear here.")
+            Text("Trails you record will appear here.")
                 .font(.subheadline)
                 .foregroundStyle(.secondary)
         }
@@ -44,29 +44,29 @@ struct LibraryTabView: View {
     }
 }
 
-private struct HikeRow: View {
-    let hike: Hike
+private struct TrailRow: View {
+    let trail: Trail
 
     private var coordinates: [CLLocationCoordinate2D] {
-        hike.samples
+        trail.samples
             .sorted { $0.timestamp < $1.timestamp }
             .map { CLLocationCoordinate2D(latitude: $0.latitude, longitude: $0.longitude) }
     }
 
     var body: some View {
         HStack(spacing: 12) {
-            HikeThumbnail(coordinates: coordinates)
+            TrailThumbnail(coordinates: coordinates)
                 .frame(width: 64, height: 64)
 
             VStack(alignment: .leading, spacing: 4) {
-                Text(hike.title?.isEmpty == false ? hike.title! : defaultTitle)
+                Text(trail.title?.isEmpty == false ? trail.title! : defaultTitle)
                     .font(.headline)
                     .lineLimit(1)
                 HStack(spacing: 8) {
-                    Text(formatDistance(hike.distanceMeters))
+                    Text(formatDistance(trail.distanceMeters))
                     Text("•")
-                    Text(formatDuration(hike.durationSeconds))
-                    if hike.waypoints.contains(where: { $0.isDestination }) {
+                    Text(formatDuration(trail.durationSeconds))
+                    if trail.waypoints.contains(where: { $0.isDestination }) {
                         Text("•")
                         Image(systemName: "mappin.circle.fill")
                             .foregroundStyle(.red)
@@ -74,7 +74,7 @@ private struct HikeRow: View {
                 }
                 .font(.subheadline)
                 .foregroundStyle(.secondary)
-                Text(hike.startedAt.formatted(date: .abbreviated, time: .shortened))
+                Text(trail.startedAt.formatted(date: .abbreviated, time: .shortened))
                     .font(.caption)
                     .foregroundStyle(.secondary)
             }
@@ -83,7 +83,7 @@ private struct HikeRow: View {
     }
 
     private var defaultTitle: String {
-        "Hike on \(hike.startedAt.formatted(date: .abbreviated, time: .omitted))"
+        "Trail on \(trail.startedAt.formatted(date: .abbreviated, time: .omitted))"
     }
 
     private func formatDistance(_ meters: Double) -> String {

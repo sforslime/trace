@@ -6,8 +6,8 @@ struct ContentView: View {
             MapTabView()
                 .tabItem { Label("Map", systemImage: "map") }
 
-            HikeTabView()
-                .tabItem { Label("Hike", systemImage: "figure.hiking") }
+            TrailTabView()
+                .tabItem { Label("Trail", systemImage: "figure.hiking") }
 
             LibraryTabView()
                 .tabItem { Label("Library", systemImage: "books.vertical") }

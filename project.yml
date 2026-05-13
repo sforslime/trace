@@ -36,8 +36,8 @@ targets:
         INFOPLIST_KEY_UISupportedInterfaceOrientations_iPhone: "UIInterfaceOrientationPortrait UIInterfaceOrientationLandscapeLeft UIInterfaceOrientationLandscapeRight"
         INFOPLIST_KEY_UISupportedInterfaceOrientations_iPad: "UIInterfaceOrientationPortrait UIInterfaceOrientationPortraitUpsideDown UIInterfaceOrientationLandscapeLeft UIInterfaceOrientationLandscapeRight"
         INFOPLIST_KEY_NSLocationWhenInUseUsageDescription: "Trace uses your location to record your trail and show your position on the map."
-        INFOPLIST_KEY_NSLocationAlwaysAndWhenInUseUsageDescription: "Trace tracks your trail in the background so you can lock your phone while hiking."
-        INFOPLIST_KEY_NSMotionUsageDescription: "Trace uses motion data to count your steps during a hike."
+        INFOPLIST_KEY_NSLocationAlwaysAndWhenInUseUsageDescription: "Trace tracks your trail in the background so you can lock your phone while you're out."
+        INFOPLIST_KEY_NSMotionUsageDescription: "Trace uses motion data to count your steps while you're recording a trail."
         INFOPLIST_KEY_UIBackgroundModes: "location"
     dependencies:
       - package: MapLibre
