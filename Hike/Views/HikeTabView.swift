@@ -41,8 +41,6 @@ struct HikeTabView: View {
             stat("Time", formatDuration(recorder.elapsedSeconds))
             divider
             stat("Pace", formatPace(meters: hike?.distanceMeters ?? 0, seconds: recorder.elapsedSeconds))
-            divider
-            stat("Steps", "\(hike?.stepCount ?? 0)")
         }
         .padding(.vertical, 14)
         .background(
