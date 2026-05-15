@@ -1,6 +1,12 @@
 import SwiftUI
 import MapLibre
 
+struct SharedTrailRender: Identifiable {
+    let id: UUID
+    let coordinates: [CLLocationCoordinate2D]
+    let destination: CLLocationCoordinate2D?
+}
+
 struct MapLibreMapView: UIViewRepresentable {
     var styleURL: URL = MapStyle.default
     var showsUserLocation: Bool = true
@@ -10,8 +16,9 @@ struct MapLibreMapView: UIViewRepresentable {
     var destination: CLLocationCoordinate2D? = nil
     var fitBounds: [CLLocationCoordinate2D]? = nil
     var interactive: Bool = true
-    var sharedTrails: [[CLLocationCoordinate2D]] = []
+    var sharedTrails: [SharedTrailRender] = []
     var onRegionChange: ((MLNCoordinateBounds) -> Void)? = nil
+    var onSharedTrailTap: ((UUID) -> Void)? = nil
 
     func makeCoordinator() -> Coordinator {
         Coordinator()
@@ -28,6 +35,20 @@ struct MapLibreMapView: UIViewRepresentable {
         mapView.allowsRotating = interactive
         mapView.allowsTilting = interactive
         context.coordinator.parent = self
+
+        let tap = UITapGestureRecognizer(
+            target: context.coordinator,
+            action: #selector(Coordinator.handleTap(_:))
+        )
+        tap.cancelsTouchesInView = false
+        // Defer to MLN's own double-tap-to-zoom so we don't fire on the first tap of a double.
+        for existing in mapView.gestureRecognizers ?? [] {
+            if let dt = existing as? UITapGestureRecognizer, dt.numberOfTapsRequired == 2 {
+                tap.require(toFail: dt)
+            }
+        }
+        mapView.addGestureRecognizer(tap)
+
         return mapView
     }
 
@@ -66,6 +87,7 @@ struct MapLibreMapView: UIViewRepresentable {
         var lastFitBoundsSignature: String?
         private var polylineSource: MLNShapeSource?
         private var sharedTrailsSource: MLNShapeSource?
+        private var sharedDestinationsSource: MLNShapeSource?
         private var destinationAnnotation: MLNPointAnnotation?
         private var styleLoaded = false
         private var lastSharedTrailsSignature: String?
@@ -81,6 +103,17 @@ struct MapLibreMapView: UIViewRepresentable {
             sharedLayer.lineCap = NSExpression(forConstantValue: "round")
             sharedLayer.lineJoin = NSExpression(forConstantValue: "round")
             style.addLayer(sharedLayer)
+
+            let destSource = MLNShapeSource(identifier: "shared-destinations", shape: nil, options: nil)
+            style.addSource(destSource)
+            sharedDestinationsSource = destSource
+
+            let destLayer = MLNCircleStyleLayer(identifier: "shared-destinations-circle", source: destSource)
+            destLayer.circleRadius = NSExpression(forConstantValue: 6)
+            destLayer.circleColor = NSExpression(forConstantValue: UIColor.systemGray.withAlphaComponent(0.9))
+            destLayer.circleStrokeColor = NSExpression(forConstantValue: UIColor.white)
+            destLayer.circleStrokeWidth = NSExpression(forConstantValue: 2)
+            style.addLayer(destLayer)
 
             let source = MLNShapeSource(identifier: "breadcrumb", shape: nil, options: nil)
             style.addSource(source)
@@ -113,6 +146,22 @@ struct MapLibreMapView: UIViewRepresentable {
             parent?.onRegionChange?(mapView.visibleCoordinateBounds)
         }
 
+        @objc func handleTap(_ gr: UITapGestureRecognizer) {
+            guard gr.state == .ended, let mapView = gr.view as? MLNMapView else { return }
+            let point = gr.location(in: mapView)
+            // Generous hit area for thin lines and small circles.
+            let touchRect = CGRect(x: point.x - 16, y: point.y - 16, width: 32, height: 32)
+            let layers: Set<String> = ["shared-destinations-circle", "shared-trails-line"]
+            let features = mapView.visibleFeatures(in: touchRect, styleLayerIdentifiers: layers)
+            for feature in features {
+                if let idString = feature.attribute(forKey: "trail_id") as? String,
+                   let uuid = UUID(uuidString: idString) {
+                    parent?.onSharedTrailTap?(uuid)
+                    return
+                }
+            }
+        }
+
         func updatePolyline(coordinates: [CLLocationCoordinate2D]) {
             guard let polylineSource, styleLoaded else { return }
             guard coordinates.count >= 2 else {
@@ -123,22 +172,34 @@ struct MapLibreMapView: UIViewRepresentable {
             polylineSource.shape = MLNPolylineFeature(coordinates: &coords, count: UInt(coords.count))
         }
 
-        func updateSharedTrails(trails: [[CLLocationCoordinate2D]]) {
-            guard let sharedTrailsSource, styleLoaded else { return }
+        func updateSharedTrails(trails: [SharedTrailRender]) {
+            guard let sharedTrailsSource, let sharedDestinationsSource, styleLoaded else { return }
 
-            let signature = trails.reduce(into: "") { acc, line in
-                guard let first = line.first, let last = line.last else { return }
-                acc += "[\(line.count):\(first.latitude),\(first.longitude)-\(last.latitude),\(last.longitude)]"
+            let signature = trails.reduce(into: "") { acc, t in
+                acc += "[\(t.id.uuidString):\(t.coordinates.count)"
+                if let d = t.destination { acc += "/\(d.latitude),\(d.longitude)" }
+                acc += "]"
             }
             guard signature != lastSharedTrailsSignature else { return }
             lastSharedTrailsSignature = signature
 
-            let features = trails.compactMap { line -> MLNPolylineFeature? in
-                guard line.count >= 2 else { return nil }
-                var coords = line
-                return MLNPolylineFeature(coordinates: &coords, count: UInt(coords.count))
+            let lineFeatures = trails.compactMap { t -> MLNPolylineFeature? in
+                guard t.coordinates.count >= 2 else { return nil }
+                var coords = t.coordinates
+                let feature = MLNPolylineFeature(coordinates: &coords, count: UInt(coords.count))
+                feature.attributes = ["trail_id": t.id.uuidString]
+                return feature
             }
-            sharedTrailsSource.shape = MLNShapeCollectionFeature(shapes: features)
+            sharedTrailsSource.shape = MLNShapeCollectionFeature(shapes: lineFeatures)
+
+            let destFeatures = trails.compactMap { t -> MLNPointFeature? in
+                guard let d = t.destination else { return nil }
+                let pt = MLNPointFeature()
+                pt.coordinate = d
+                pt.attributes = ["trail_id": t.id.uuidString]
+                return pt
+            }
+            sharedDestinationsSource.shape = MLNShapeCollectionFeature(shapes: destFeatures)
         }
 
         func updateDestination(_ coord: CLLocationCoordinate2D?, on mapView: MLNMapView) {

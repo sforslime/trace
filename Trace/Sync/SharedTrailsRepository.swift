@@ -6,7 +6,11 @@ import Supabase
 struct PublishedTrail: Identifiable, Decodable {
     let id: UUID
     let userId: UUID
+    let username: String?
+    let displayName: String?
     let title: String?
+    let distanceMeters: Double?
+    let durationSeconds: Int?
     let destinationLng: Double?
     let destinationLat: Double?
     let destinationName: String?
@@ -17,6 +21,12 @@ struct PublishedTrail: Identifiable, Decodable {
         return CLLocationCoordinate2D(latitude: destinationLat, longitude: destinationLng)
     }
 
+    var authorLabel: String {
+        if let displayName, !displayName.isEmpty { return displayName }
+        if let username, !username.isEmpty { return "@\(username)" }
+        return "Someone"
+    }
+
     private struct LineStringGeo: Decodable {
         let type: String
         let coordinates: [[Double]]
@@ -25,7 +35,11 @@ struct PublishedTrail: Identifiable, Decodable {
     enum CodingKeys: String, CodingKey {
         case id
         case userId = "user_id"
+        case username
+        case displayName = "display_name"
         case title
+        case distanceMeters = "distance_meters"
+        case durationSeconds = "duration_seconds"
         case destinationLng = "destination_lng"
         case destinationLat = "destination_lat"
         case destinationName = "destination_name"
@@ -36,7 +50,18 @@ struct PublishedTrail: Identifiable, Decodable {
         let c = try decoder.container(keyedBy: CodingKeys.self)
         id = try c.decode(UUID.self, forKey: .id)
         userId = try c.decode(UUID.self, forKey: .userId)
+        username = try c.decodeIfPresent(String.self, forKey: .username)
+        displayName = try c.decodeIfPresent(String.self, forKey: .displayName)
         title = try c.decodeIfPresent(String.self, forKey: .title)
+        // PostgREST returns NUMERIC as a string by default; accept both.
+        if let n = try? c.decodeIfPresent(Double.self, forKey: .distanceMeters) {
+            distanceMeters = n
+        } else if let s = try c.decodeIfPresent(String.self, forKey: .distanceMeters) {
+            distanceMeters = Double(s)
+        } else {
+            distanceMeters = nil
+        }
+        durationSeconds = try c.decodeIfPresent(Int.self, forKey: .durationSeconds)
         destinationLng = try c.decodeIfPresent(Double.self, forKey: .destinationLng)
         destinationLat = try c.decodeIfPresent(Double.self, forKey: .destinationLat)
         destinationName = try c.decodeIfPresent(String.self, forKey: .destinationName)

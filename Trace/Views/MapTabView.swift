@@ -6,12 +6,16 @@ struct MapTabView: View {
     @State private var location = LocationManager()
     @State private var sharedTrails = SharedTrailsRepository()
     @State private var debounceTask: Task<Void, Never>?
+    @State private var selectedTrail: PublishedTrail?
 
     var body: some View {
         NavigationStack {
             content
                 .navigationTitle("Map")
                 .navigationBarTitleDisplayMode(.inline)
+        }
+        .sheet(item: $selectedTrail) { trail in
+            PublishedTrailDetailView(trail: trail)
         }
     }
 
@@ -24,13 +28,26 @@ struct MapTabView: View {
             permissionDenied
         case .authorizedWhenInUse, .authorizedAlways:
             MapLibreMapView(
-                sharedTrails: sharedTrails.trails.map(\.coordinates),
-                onRegionChange: scheduleFetch
+                sharedTrails: sharedTrails.trails.map(renderable),
+                onRegionChange: scheduleFetch,
+                onSharedTrailTap: handleSharedTrailTap
             )
             .ignoresSafeArea(edges: .bottom)
         @unknown default:
             permissionRequest
         }
+    }
+
+    private func renderable(_ trail: PublishedTrail) -> SharedTrailRender {
+        SharedTrailRender(
+            id: trail.id,
+            coordinates: trail.coordinates,
+            destination: trail.destination
+        )
+    }
+
+    private func handleSharedTrailTap(_ id: UUID) {
+        selectedTrail = sharedTrails.trails.first { $0.id == id }
     }
 
     private func scheduleFetch(bounds: MLNCoordinateBounds) {
