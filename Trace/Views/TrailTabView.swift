@@ -14,7 +14,8 @@ struct TrailTabView: View {
                 followsUser: true,
                 zoom: recorder.state == .recording ? 17 : 14,
                 breadcrumb: recorder.liveCoordinates,
-                destination: recorder.destinationCoordinate
+                destination: recorder.destinationCoordinate,
+                followedTrail: recorder.followedTrail
             )
             .ignoresSafeArea()
 

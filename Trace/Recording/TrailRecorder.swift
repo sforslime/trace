@@ -16,6 +16,7 @@ final class TrailRecorder: NSObject {
     private(set) var elapsedSeconds: Int = 0
     private(set) var liveCoordinates: [CLLocationCoordinate2D] = []
     private(set) var destinationCoordinate: CLLocationCoordinate2D?
+    private(set) var followedTrail: [CLLocationCoordinate2D] = []
 
     // Captured at end() so TrailTabView can present the summary sheet
     // after the recorder has already returned to .idle.
@@ -50,6 +51,7 @@ final class TrailRecorder: NSObject {
         lastLocation = nil
         liveCoordinates = []
         destinationCoordinate = nil
+        followedTrail = []
 
         manager.startUpdatingLocation()
 
@@ -81,6 +83,17 @@ final class TrailRecorder: NSObject {
         lastLocation = nil
         liveCoordinates = []
         destinationCoordinate = nil
+        followedTrail = []
+    }
+
+    /// Starts a recording with another trail's path as a visual guide.
+    /// The destination pin is set to the followed trail's end so the user
+    /// has a clear target; the guide line itself is not persisted.
+    func startFollowing(coordinates: [CLLocationCoordinate2D]) {
+        guard state == .idle, !coordinates.isEmpty else { return }
+        start()
+        followedTrail = coordinates
+        destinationCoordinate = coordinates.last
     }
 
     func pinDestination() {

@@ -6,6 +6,10 @@ struct ContentView: View {
     @Environment(\.scenePhase) private var scenePhase
     @Environment(TrailSyncManager.self) private var sync
 
+    @State private var selectedTab: Tab = .map
+
+    enum Tab: Hashable { case map, trail, library, profile }
+
     var body: some View {
         VStack(spacing: 0) {
             if case let .error(message) = sync.status {
@@ -15,18 +19,22 @@ struct ContentView: View {
                 .transition(.move(edge: .top).combined(with: .opacity))
             }
 
-            TabView {
-                MapTabView()
+            TabView(selection: $selectedTab) {
+                MapTabView(selectedTab: $selectedTab)
                     .tabItem { Label("Map", systemImage: "map") }
+                    .tag(Tab.map)
 
                 TrailTabView()
                     .tabItem { Label("Trail", systemImage: "figure.hiking") }
+                    .tag(Tab.trail)
 
                 LibraryTabView()
                     .tabItem { Label("Library", systemImage: "books.vertical") }
+                    .tag(Tab.library)
 
                 ProfileTabView()
                     .tabItem { Label("Profile", systemImage: "person.crop.circle") }
+                    .tag(Tab.profile)
             }
         }
         .animation(.snappy, value: sync.status)

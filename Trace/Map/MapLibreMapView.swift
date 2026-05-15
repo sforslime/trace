@@ -17,6 +17,7 @@ struct MapLibreMapView: UIViewRepresentable {
     var fitBounds: [CLLocationCoordinate2D]? = nil
     var interactive: Bool = true
     var sharedTrails: [SharedTrailRender] = []
+    var followedTrail: [CLLocationCoordinate2D] = []
     var onRegionChange: ((MLNCoordinateBounds) -> Void)? = nil
     var onSharedTrailTap: ((UUID) -> Void)? = nil
 
@@ -72,6 +73,7 @@ struct MapLibreMapView: UIViewRepresentable {
         }
 
         context.coordinator.updateSharedTrails(trails: sharedTrails)
+        context.coordinator.updateFollowedTrail(coordinates: followedTrail)
         context.coordinator.updatePolyline(coordinates: breadcrumb)
         context.coordinator.updateDestination(destination, on: mapView)
     }
@@ -88,9 +90,11 @@ struct MapLibreMapView: UIViewRepresentable {
         private var polylineSource: MLNShapeSource?
         private var sharedTrailsSource: MLNShapeSource?
         private var sharedDestinationsSource: MLNShapeSource?
+        private var followedTrailSource: MLNShapeSource?
         private var destinationAnnotation: MLNPointAnnotation?
         private var styleLoaded = false
         private var lastSharedTrailsSignature: String?
+        private var lastFollowedTrailSignature: String?
 
         func mapView(_ mapView: MLNMapView, didFinishLoading style: MLNStyle) {
             let sharedSource = MLNShapeSource(identifier: "shared-trails", shape: nil, options: nil)
@@ -115,6 +119,18 @@ struct MapLibreMapView: UIViewRepresentable {
             destLayer.circleStrokeWidth = NSExpression(forConstantValue: 2)
             style.addLayer(destLayer)
 
+            let followedSource = MLNShapeSource(identifier: "followed-trail", shape: nil, options: nil)
+            style.addSource(followedSource)
+            followedTrailSource = followedSource
+
+            let followedLayer = MLNLineStyleLayer(identifier: "followed-trail-line", source: followedSource)
+            followedLayer.lineColor = NSExpression(forConstantValue: UIColor.systemTeal)
+            followedLayer.lineWidth = NSExpression(forConstantValue: 4)
+            followedLayer.lineOpacity = NSExpression(forConstantValue: 0.85)
+            followedLayer.lineCap = NSExpression(forConstantValue: "round")
+            followedLayer.lineJoin = NSExpression(forConstantValue: "round")
+            style.addLayer(followedLayer)
+
             let source = MLNShapeSource(identifier: "breadcrumb", shape: nil, options: nil)
             style.addSource(source)
             polylineSource = source
@@ -130,6 +146,7 @@ struct MapLibreMapView: UIViewRepresentable {
 
             if let parent {
                 updateSharedTrails(trails: parent.sharedTrails)
+                updateFollowedTrail(coordinates: parent.followedTrail)
                 updatePolyline(coordinates: parent.breadcrumb)
                 updateDestination(parent.destination, on: mapView)
                 if let bounds = parent.fitBounds {
@@ -170,6 +187,20 @@ struct MapLibreMapView: UIViewRepresentable {
             }
             var coords = coordinates
             polylineSource.shape = MLNPolylineFeature(coordinates: &coords, count: UInt(coords.count))
+        }
+
+        func updateFollowedTrail(coordinates: [CLLocationCoordinate2D]) {
+            guard let followedTrailSource, styleLoaded else { return }
+            let signature = MapLibreMapView.signature(of: coordinates)
+            guard signature != lastFollowedTrailSignature else { return }
+            lastFollowedTrailSignature = signature
+
+            guard coordinates.count >= 2 else {
+                followedTrailSource.shape = nil
+                return
+            }
+            var coords = coordinates
+            followedTrailSource.shape = MLNPolylineFeature(coordinates: &coords, count: UInt(coords.count))
         }
 
         func updateSharedTrails(trails: [SharedTrailRender]) {

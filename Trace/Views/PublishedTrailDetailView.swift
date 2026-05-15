@@ -2,13 +2,15 @@ import SwiftUI
 
 struct PublishedTrailDetailView: View {
     let trail: PublishedTrail
+    var isRecording: Bool = false
+    var onFollow: (() -> Void)? = nil
 
     var body: some View {
         VStack(alignment: .leading, spacing: 0) {
             grabber
             content
         }
-        .presentationDetents([.fraction(0.35), .medium])
+        .presentationDetents([.fraction(0.4), .medium])
         .presentationDragIndicator(.hidden)
     }
 
@@ -29,9 +31,26 @@ struct PublishedTrailDetailView: View {
                 destinationRow(destinationName)
             }
             Spacer(minLength: 0)
+            if onFollow != nil {
+                followButton
+            }
         }
         .padding(.horizontal, 20)
         .padding(.bottom, 20)
+    }
+
+    private var followButton: some View {
+        Button {
+            onFollow?()
+        } label: {
+            Label("Follow this trail", systemImage: "figure.walk")
+                .font(.headline)
+                .frame(maxWidth: .infinity)
+                .padding(.vertical, 6)
+        }
+        .buttonStyle(.borderedProminent)
+        .controlSize(.large)
+        .disabled(isRecording || trail.coordinates.count < 2)
     }
 
     private var header: some View {

@@ -3,6 +3,10 @@ import MapLibre
 import SwiftUI
 
 struct MapTabView: View {
+    @Binding var selectedTab: ContentView.Tab
+
+    @Environment(TrailRecorder.self) private var recorder
+
     @State private var location = LocationManager()
     @State private var sharedTrails = SharedTrailsRepository()
     @State private var debounceTask: Task<Void, Never>?
@@ -15,8 +19,19 @@ struct MapTabView: View {
                 .navigationBarTitleDisplayMode(.inline)
         }
         .sheet(item: $selectedTrail) { trail in
-            PublishedTrailDetailView(trail: trail)
+            PublishedTrailDetailView(
+                trail: trail,
+                isRecording: recorder.state == .recording,
+                onFollow: { followTrail(trail) }
+            )
         }
+    }
+
+    private func followTrail(_ trail: PublishedTrail) {
+        guard recorder.state == .idle, !trail.coordinates.isEmpty else { return }
+        recorder.startFollowing(coordinates: trail.coordinates)
+        selectedTrail = nil
+        selectedTab = .trail
     }
 
     @ViewBuilder
@@ -117,5 +132,6 @@ struct MapTabView: View {
 }
 
 #Preview {
-    MapTabView()
+    MapTabView(selectedTab: .constant(.map))
+        .environment(TrailRecorder())
 }
