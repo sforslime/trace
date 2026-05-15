@@ -19,11 +19,17 @@ struct TrailTabView: View {
             )
             .ignoresSafeArea()
 
-            VStack(spacing: 0) {
+            VStack(spacing: 8) {
+                if let guidance = recorder.guidance {
+                    FollowGuidancePill(guidance: guidance)
+                        .padding(.horizontal, 16)
+                        .padding(.top, 8)
+                        .transition(.move(edge: .top).combined(with: .opacity))
+                }
                 if recorder.state == .recording {
                     statsCard
                         .padding(.horizontal, 16)
-                        .padding(.top, 8)
+                        .padding(.top, recorder.guidance == nil ? 8 : 0)
                         .transition(.move(edge: .top).combined(with: .opacity))
                 }
                 Spacer()

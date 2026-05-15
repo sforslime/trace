@@ -17,6 +17,7 @@ final class TrailRecorder: NSObject {
     private(set) var liveCoordinates: [CLLocationCoordinate2D] = []
     private(set) var destinationCoordinate: CLLocationCoordinate2D?
     private(set) var followedTrail: [CLLocationCoordinate2D] = []
+    private(set) var currentHeading: CLHeading?
 
     // Captured at end() so TrailTabView can present the summary sheet
     // after the recorder has already returned to .idle.
@@ -35,6 +36,7 @@ final class TrailRecorder: NSObject {
         manager.distanceFilter = 5
         manager.activityType = .fitness
         manager.pausesLocationUpdatesAutomatically = false
+        manager.headingFilter = 5
     }
 
     func attach(modelContext: ModelContext) {
@@ -54,6 +56,9 @@ final class TrailRecorder: NSObject {
         followedTrail = []
 
         manager.startUpdatingLocation()
+        if CLLocationManager.headingAvailable() {
+            manager.startUpdatingHeading()
+        }
 
         stepCounter.start(from: trail.startedAt) { [weak self] steps in
             self?.currentTrail?.stepCount = steps
@@ -71,6 +76,7 @@ final class TrailRecorder: NSObject {
     func end() {
         guard state == .recording, let trail = currentTrail else { return }
         manager.stopUpdatingLocation()
+        manager.stopUpdatingHeading()
         stepCounter.stop()
         timer?.invalidate()
         timer = nil
@@ -84,6 +90,7 @@ final class TrailRecorder: NSObject {
         liveCoordinates = []
         destinationCoordinate = nil
         followedTrail = []
+        currentHeading = nil
     }
 
     /// Starts a recording with another trail's path as a visual guide.
@@ -94,6 +101,79 @@ final class TrailRecorder: NSObject {
         start()
         followedTrail = coordinates
         destinationCoordinate = coordinates.last
+    }
+
+    /// Live navigation hint while following another user's trail.
+    /// Nil unless recording, following, and we have a fresh location fix.
+    var guidance: FollowGuidance? {
+        guard state == .recording,
+              !followedTrail.isEmpty,
+              let user = lastLocation else { return nil }
+
+        let targetIndex = nextTargetIndex(from: user.coordinate)
+        let target = followedTrail[targetIndex]
+        let distance = user.distance(from: CLLocation(latitude: target.latitude, longitude: target.longitude))
+        let bearingToTarget = bearing(from: user.coordinate, to: target)
+
+        let headingDeg = currentHeading?.trueHeading ?? currentHeading?.magneticHeading
+        let relative: Double?
+        if let headingDeg, headingDeg >= 0 {
+            // Normalize to -180...180 (right positive, left negative).
+            var diff = (bearingToTarget - headingDeg)
+                .truncatingRemainder(dividingBy: 360)
+            if diff > 180 { diff -= 360 }
+            if diff < -180 { diff += 360 }
+            relative = diff
+        } else {
+            relative = nil
+        }
+
+        let arrived = targetIndex == followedTrail.count - 1 && distance < 8
+        return FollowGuidance(
+            direction: .arrived, // resolved inside the init
+            distanceMeters: distance,
+            relativeBearingDegrees: relative,
+            absoluteBearingDegrees: bearingToTarget,
+            hasHeading: relative != nil,
+            arrived: arrived
+        )
+    }
+
+    private func nextTargetIndex(from user: CLLocationCoordinate2D) -> Int {
+        // Find the closest point on the followed trail, then walk forward until
+        // we're at least ~20 m beyond the user so the hint pulls you toward the
+        // next bit of trail, not to a point you're already standing on.
+        guard !followedTrail.isEmpty else { return 0 }
+        let nearestIndex = followedTrail.indices.min(by: { a, b in
+            distanceSquared(user, followedTrail[a]) < distanceSquared(user, followedTrail[b])
+        }) ?? followedTrail.count - 1
+
+        let userLoc = CLLocation(latitude: user.latitude, longitude: user.longitude)
+        var i = nearestIndex
+        while i < followedTrail.count - 1 {
+            let p = followedTrail[i]
+            let d = userLoc.distance(from: CLLocation(latitude: p.latitude, longitude: p.longitude))
+            if d >= 20 { return i }
+            i += 1
+        }
+        return followedTrail.count - 1
+    }
+
+    private func bearing(from a: CLLocationCoordinate2D, to b: CLLocationCoordinate2D) -> Double {
+        let lat1 = a.latitude * .pi / 180
+        let lat2 = b.latitude * .pi / 180
+        let dLon = (b.longitude - a.longitude) * .pi / 180
+        let y = sin(dLon) * cos(lat2)
+        let x = cos(lat1) * sin(lat2) - sin(lat1) * cos(lat2) * cos(dLon)
+        let radians = atan2(y, x)
+        let degrees = radians * 180 / .pi
+        return (degrees + 360).truncatingRemainder(dividingBy: 360)
+    }
+
+    private func distanceSquared(_ a: CLLocationCoordinate2D, _ b: CLLocationCoordinate2D) -> Double {
+        let dLat = a.latitude - b.latitude
+        let dLon = a.longitude - b.longitude
+        return dLat * dLat + dLon * dLon
     }
 
     func pinDestination() {
@@ -120,11 +200,86 @@ final class TrailRecorder: NSObject {
     }
 }
 
+struct FollowGuidance {
+    enum Direction: String {
+        case arrived
+        case straightAhead
+        case bearRight
+        case bearLeft
+        case turnRight
+        case turnLeft
+        case turnAround
+        /// Heading isn't available (e.g. simulator) — fall back to a cardinal direction.
+        case headTo
+    }
+
+    let direction: Direction
+    let instruction: String
+    let distanceMeters: Double
+    let relativeBearingDegrees: Double?
+    let absoluteBearingDegrees: Double
+
+    init(
+        direction: Direction,
+        distanceMeters: Double,
+        relativeBearingDegrees: Double?,
+        absoluteBearingDegrees: Double,
+        hasHeading: Bool,
+        arrived: Bool
+    ) {
+        let resolvedDirection: Direction
+        let instruction: String
+        if arrived {
+            resolvedDirection = .arrived
+            instruction = "You're at the end"
+        } else if hasHeading, let r = relativeBearingDegrees {
+            let mag = abs(r)
+            if mag < 15 {
+                resolvedDirection = .straightAhead
+                instruction = "Straight ahead"
+            } else if mag < 60 {
+                resolvedDirection = r > 0 ? .bearRight : .bearLeft
+                instruction = r > 0 ? "Bear right" : "Bear left"
+            } else if mag < 150 {
+                resolvedDirection = r > 0 ? .turnRight : .turnLeft
+                instruction = r > 0 ? "Turn right" : "Turn left"
+            } else {
+                resolvedDirection = .turnAround
+                instruction = "Turn around"
+            }
+        } else {
+            resolvedDirection = .headTo
+            instruction = "Head \(Self.cardinal(for: absoluteBearingDegrees))"
+        }
+
+        self.direction = resolvedDirection
+        self.instruction = instruction
+        self.distanceMeters = distanceMeters
+        self.relativeBearingDegrees = relativeBearingDegrees
+        self.absoluteBearingDegrees = absoluteBearingDegrees
+    }
+
+    private static func cardinal(for bearing: Double) -> String {
+        let labels = ["north", "north-east", "east", "south-east", "south", "south-west", "west", "north-west"]
+        let normalized = (bearing.truncatingRemainder(dividingBy: 360) + 360).truncatingRemainder(dividingBy: 360)
+        let idx = Int(((normalized + 22.5) / 45).rounded(.down)) % 8
+        return labels[idx]
+    }
+}
+
 extension TrailRecorder: CLLocationManagerDelegate {
     nonisolated func locationManager(_ manager: CLLocationManager, didUpdateLocations locations: [CLLocation]) {
         let snapshots = locations
         Task { @MainActor in
             self.ingest(locations: snapshots)
+        }
+    }
+
+    nonisolated func locationManager(_ manager: CLLocationManager, didUpdateHeading newHeading: CLHeading) {
+        let snapshot = newHeading
+        Task { @MainActor in
+            guard self.state == .recording, snapshot.headingAccuracy >= 0 else { return }
+            self.currentHeading = snapshot
         }
     }
 
